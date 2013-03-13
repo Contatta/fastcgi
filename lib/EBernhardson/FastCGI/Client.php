@@ -24,7 +24,7 @@ namespace EBernhardson\FastCGI;
  * @author      Erik Bernhardson <bernhardsonerik@gmail.com>
  * @version     2.0
  */
-class Client
+class FastCgiClient
 {
     const VERSION_1            = 1;
 
@@ -114,7 +114,7 @@ class Client
     public function __destruct()
     {
         if ($this->sock) {
-           socket_close($this->sock);
+            socket_close($this->sock);
         }
     }
 
@@ -183,6 +183,7 @@ class Client
      * @param Integer $type Type of the packet
      * @param String $content Content of the packet
      * @param Integer $requestId RequestId
+     * @return string
      */
     private function buildPacket($type, $content, $requestId = 1)
     {
@@ -231,6 +232,7 @@ class Client
      * Read a set of FastCGI Name value pairs
      *
      * @param String $data Data containing the set of FastCGI NVPair
+     * @param null $length
      * @return array of NVPair
      */
     private function readNvpair($data, $length = null)
@@ -287,6 +289,7 @@ class Client
     /**
      * Read a FastCGI Packet
      *
+     * @throws CommunicationException
      * @return array
      */
     private function readPacket()
@@ -315,6 +318,7 @@ class Client
      * Get Informations on the FastCGI application
      *
      * @param array $requestedInfo information to retrieve
+     * @throws CommunicationException|\Exception
      * @return array
      */
     public function getValues(array $requestedInfo)
@@ -331,6 +335,7 @@ class Client
      * Get Informations on the FastCGI application
      *
      * @param array $requestedInfo information to retrieve
+     * @throws CommunicationException
      * @return array
      */
     protected function doGetValues(array $requestedInfo)
@@ -362,6 +367,7 @@ class Client
      *
      * @param array $params Array of parameters
      * @param String $stdin Content
+     * @throws CommunicationException|\Exception
      */
     public function request(array $params, $stdin)
     {
@@ -378,6 +384,7 @@ class Client
      *
      * @param array $params Array of parameters
      * @param String $stdin Content
+     * @throws CommunicationException
      */
     protected function doRequest(array $params, $stdin)
     {
@@ -412,9 +419,10 @@ class Client
      *
      * Format the response into an array with separate statusCode, headers, body, and error output.
      *
-     * @param $stdout The plain, unformatted response.
-     * @param $stderr The plain, unformatted error output.
+     * @param string $stdout The plain, unformatted response.
+     * @param string $stderr The plain, unformatted error output.
      *
+     * @throws CommunicationException
      * @return array An array containing the headers and body content.
      */
     private static function formatResponse($stdout, $stderr) {
@@ -464,6 +472,7 @@ class Client
     /**
      * Collect the response from a FastCGI request.
      *
+     * @throws CommunicationException|\Exception
      * @return String Return response.
      */
     public function response()
@@ -479,12 +488,13 @@ class Client
     /**
      * Collect the response from a FastCGI request.
      *
+     * @throws CommunicationException
      * @return String Return response.
      */
     protected function doResponse()
     {
         $stdout = $stderr = '';
-
+        $resp = false;
         while ($this->awaitingResponse) {
 
             $resp = $this->readPacket();
@@ -492,7 +502,7 @@ class Client
             // Check for the end of the response.
             if ($resp['type'] == self::END_REQUEST) {
                 $this->awaitingResponse = false;
-            // Check for response content.
+                // Check for response content.
             } elseif ($resp['type'] == self::STDOUT) {
                 $stdout .= $resp['content'];
             } elseif ($resp['type'] == self::STDERR) {
@@ -517,11 +527,11 @@ class Client
             case self::REQUEST_COMPLETE:
                 return static::formatResponse($stdout, $stderr);
         }
+        return '';
     }
 
     public function __toString()
     {
-        $type = $this->socketPath ? 'tcp' : 'unix';
         if ($this->awaitingResponse) {
             $status = 'waiting for response';
         } elseif ($this->sock) {
